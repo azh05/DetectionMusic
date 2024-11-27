@@ -57,38 +57,44 @@ def main():
                 
                 # Running YOLOv8 on the frame
                 # This prints out the information onto terminal 
-                results = model(frame)
+                results = model(frame, verbose=False)
+
+                broken_pipe = False
 
                 for result in results:
                     # This converts the results from YOLOv8 into bounding box detection
                     detections = sv.Detections.from_ultralytics(result)
 
+                    # Filtering for 
+                    filtered_detections = detections[(detections.class_id == 0) 
+                                                     & (detections.confidence > 0.5)]
+                    
                     # This gets the object labels and confidence of objects 
                     labels = [
                         f"{model.model.names[class_id]} {confidence:0.2f}"
                         for _, _, confidence, class_id, _, _
-                        in detections
+                        in filtered_detections
                     ]
-                    
-                    # Filtering for object confidence > 0.6
-                    confident_detections = detections[detections.confidence > 0.6] 
 
                     # If confident about finding a person
-                    is_music_playing = True if any(confident_detections.class_id == 0) else False
+                    is_music_playing = True if any(filtered_detections.class_id == 0) else False
                         
                     # Send is_music_playing state to the client
                     state_message = json.dumps({"is_music_playing": is_music_playing})
+
                     try:
                         conn.sendall(state_message.encode())
                     except BrokenPipeError:
                         print("Client disconnected.")
+                        broken_pipe = True
+
                         break
 
                     # This annotates the current frame with the detection bounding box
-                    frame = bounding_box_annotator.annotate(scene=frame, detections=detections)
+                    frame = bounding_box_annotator.annotate(scene=frame, detections=filtered_detections)
 
                     # This annotates the current frame with a label
-                    frame = label_annotator.annotate(scene=frame,labels=labels, detections=detections)
+                    frame = label_annotator.annotate(scene=frame,labels=labels, detections=filtered_detections)
 
                 # Window name is yolov8
                 cv2.imshow("yolov8", frame)
@@ -98,7 +104,9 @@ def main():
                 if (cv2.waitKey(30) == 27):
                     # Break out of loop - end camera and disconnect from server
                     break
-
+                    
+                if broken_pipe:
+                    break
             cap.release()
             cv2.destroyAllWindows()
 

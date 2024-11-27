@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Start the server script in the background
+echo "Starting server script..."
+python3 main.py &
+server_pid=$!
+
+# Wait for the server to be up
+echo "Waiting for server to start on 127.0.0.1:65432..."
+while ! nc -z 127.0.0.1 65432; do
+  sleep 1
+done
+
+echo "Server is ready. Starting music_player script..."
+# Start the client script
+python3 music_player.py
+
